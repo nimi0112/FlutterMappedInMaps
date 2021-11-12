@@ -8,9 +8,11 @@
     <uses-feature android:name="android.hardware.location.gps" />
 
     <application
+        android:debuggable="true"
         android:icon="@mipmap/ic_launcher"
         android:label="${appName}"
         android:usesCleartextTraffic="true">
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -38,6 +40,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.example.verygoodcore.NewMapsActivity"
+            android:theme="@style/Theme.SDKv3_Examples" />
+
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

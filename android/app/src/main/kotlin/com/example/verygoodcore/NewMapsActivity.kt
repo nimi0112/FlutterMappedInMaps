@@ -1,14 +1,12 @@
 package com.example.verygoodcore
 
-import android.content.Context
+import android.os.Bundle
 import android.util.Log
-import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
-import android.widget.Toast.LENGTH_LONG
+import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.bumptech.glide.Glide
 import com.example.verygoodcore.maps_demo.R
@@ -24,7 +22,6 @@ import com.mappedin.sdk.models.MPINavigatable
 import com.mappedin.sdk.models.MPIPosition
 import com.mappedin.sdk.models.MPIState
 import com.mappedin.sdk.web.MPIOptions
-import io.flutter.plugin.platform.PlatformView
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -33,11 +30,24 @@ import kotlin.concurrent.schedule
 import kotlin.math.sqrt
 
 /**
- * Created by Nimish Nandwana on 01/11/2021.
+ * Created by Nimish Nandwana on 02/11/2021.
  * Description -
  */
 
-internal class MapsView(private val context: Context, id: Int, creationParams: Map<String?, Any?>?) : PlatformView {
+class NewMapsActivity : AppCompatActivity() {
+
+    private var sortedMaps: List<MPIMap>? = null
+    private var blueDot: MPIBlueDotPositionUpdate? = null
+    private var selectedPolygon: MPINavigatable.MPIPolygon? = null
+    private var presentMarkerId: String? = null
+    private var markerId: String = ""
+    private var defaultRotation: Double? = null
+    private var defaultTilt: Double? = null
+
+    private val connectionTemplateString: String by lazy { readFileContentFromAssets("connectionTemplate.html") }
+    private val venueDataString: String by lazy { readFileContentFromAssets("mappedin-demo-mall.json") }
+    private val markerString: String by lazy { readFileContentFromAssets("marker.html") }
+    private val positionsString: String by lazy { readFileContentFromAssets("positions.json").replace("\n", "") }
 
 
     private lateinit var mapView: MPIMapView
@@ -58,50 +68,25 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
     private lateinit var closeButton: ImageView
     private lateinit var locationImage: ImageView
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.layout_maps)
 
-    private var sortedMaps: List<MPIMap>? = null
-    private var blueDot: MPIBlueDotPositionUpdate? = null
-    private var selectedPolygon: MPINavigatable.MPIPolygon? = null
-    private var presentMarkerId: String? = null
-    private var markerId: String = ""
-    private var defaultRotation: Double? = null
-    private var defaultTilt: Double? = null
+        mapView =findViewById(R.id.mapView)
 
-    private val connectionTemplateString: String by lazy { readFileContentFromAssets("connectionTemplate.html") }
-    private val venueDataString: String by lazy { readFileContentFromAssets("mappedin-demo-mall.json") }
-    private val markerString: String by lazy { readFileContentFromAssets("marker.html") }
-    private val positionsString: String by lazy { readFileContentFromAssets("positions.json").replace("\n", "") }
+        locationView =findViewById(R.id.locationView)
+        nearestNode =findViewById(R.id.nearestNode)
+        locationTitle =findViewById(R.id.locationTitle)
+        locationDescription =findViewById(R.id.locationDescription)
+        followMode =findViewById(R.id.followMode)
+        resetCamera =findViewById(R.id.resetCamera)
+        increaseFloor =findViewById(R.id.increaseFloor)
+        decreaseFloor =findViewById(R.id.decreaseFloor)
+        centerDirectionsButton =findViewById(R.id.centerDirectionsButton)
+        directionsButton =findViewById(R.id.directionsButton)
+        closeButton =findViewById(R.id.closeButton)
+        locationImage =findViewById(R.id.locationImage)
 
-
-    override fun getView(): View {
-        val view = LayoutInflater.from(context).inflate(R.layout.layout_maps, null, false)
-
-        mapView = view.findViewById(R.id.mapView)
-
-        locationView = view.findViewById(R.id.locationView)
-        nearestNode = view.findViewById(R.id.nearestNode)
-        locationTitle = view.findViewById(R.id.locationTitle)
-        locationDescription = view.findViewById(R.id.locationDescription)
-        followMode = view.findViewById(R.id.followMode)
-        resetCamera = view.findViewById(R.id.resetCamera)
-        increaseFloor = view.findViewById(R.id.increaseFloor)
-        decreaseFloor = view.findViewById(R.id.decreaseFloor)
-        centerDirectionsButton = view.findViewById(R.id.centerDirectionsButton)
-        directionsButton = view.findViewById(R.id.directionsButton)
-        closeButton = view.findViewById(R.id.closeButton)
-        locationImage = view.findViewById(R.id.locationImage)
-
-        return view
-    }
-
-    override fun dispose() {
-
-    }
-
-    override fun onFlutterViewAttached(flutterView: View) {
-
-
-        Toast.makeText(flutterView.context, "dsssad", LENGTH_LONG).show()
         increaseFloor.setOnClickListener {
             changeMap(true)
         }
@@ -137,10 +122,7 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
         }
 
         centerDirectionsButton.setOnClickListener {
-            mapView?.getNearestNodeByScreenCoordinates(
-                mapView?.width?.div(2) ?: 0,
-                mapView?.height?.div(2) ?: 0
-            ) { node ->
+            mapView?.getNearestNodeByScreenCoordinates(mapView?.width?.div(2) ?: 0, mapView?.height?.div(2) ?: 0) { node ->
                 if (node != null && selectedPolygon != null) {
                     mapView.getDirections(selectedPolygon!!, node, true) {
                         it?.let { directions ->
@@ -187,13 +169,7 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
                 sortedMaps = data.maps.sortedBy { it.elevation }
 
                 // Enable blueDot, does not appear until updatePosition is called with proper coordinates
-                mapView.blueDotManager.enable(
-                    MPIOptions.BlueDot(
-                        smoothing = false,
-                        showBearing = true,
-                        baseColor = "#2266ff"
-                    )
-                )
+                mapView.blueDotManager.enable(MPIOptions.BlueDot(smoothing = false, showBearing = true, baseColor = "#2266ff"))
 
                 mapView.venueData?.polygons?.forEach {
                     if (it.locations.isNullOrEmpty()) {
@@ -203,6 +179,9 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
             }
 
             override fun onMapChanged(map: MPIMap) {
+                runOnUiThread {
+                    supportActionBar?.title = map.name
+                }
                 println("MPIMap Changed: " + Json.encodeToString(map))
 
                 // Create an MPICoordinate from Latitude and Longitude
@@ -220,10 +199,12 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
             }
 
             override fun onStateChanged(state: MPIState) {
-                if (state == MPIState.FOLLOW) {
-                    followMode.visibility = View.GONE
-                } else {
-                    followMode.visibility = View.VISIBLE
+                runOnUiThread {
+                    if (state == MPIState.FOLLOW) {
+                        followMode.visibility = View.GONE
+                    } else {
+                        followMode.visibility = View.VISIBLE
+                    }
                 }
             }
 
@@ -233,9 +214,10 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
             }
 
             override fun onBlueDotPositionUpdate(update: MPIBlueDotPositionUpdate) {
-                blueDot = update
-                nearestNode.text =
-                    context.getString(R.string.blueDotNearestNode, update.nearestNode?.id ?: "N/A")
+                this@NewMapsActivity.blueDot = update
+                runOnUiThread {
+                    nearestNode.text = getString(R.string.blueDotNearestNode, update.nearestNode?.id ?: "N/A")
+                }
             }
 
             override fun onBlueDotStateChange(stateChange: MPIBlueDotStateChange) {
@@ -328,11 +310,12 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
         }
     }
 
-
     fun clearPolygon() {
         selectedPolygon = null
         mapView.clearAllPolygonColors()
-        locationView.visibility = View.GONE
+        runOnUiThread {
+            locationView.visibility = View.GONE
+        }
     }
 
     fun distanceLocationToNode(map: MPIMap, latitude: Double, longitude: Double): Double? {
@@ -369,18 +352,19 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
 
             // Add a Marker on the node of the polygon being clicked
             val node = polygon.entrances[0]
-            markerId =
-                mapView.createMarker(node, markerString, MPIOptions.Marker(anchor = MPIOptions.MARKER_ANCHOR.TOP))
+            markerId = mapView.createMarker(node, markerString, MPIOptions.Marker(anchor = MPIOptions.MARKER_ANCHOR.TOP))
             presentMarkerId = markerId
 
-            locationView.visibility = View.VISIBLE
-            locationTitle.text = it.name
-            locationDescription.text = it.description
-            Glide
-                .with(context)
-                .load(it.logo?.original)
-                .centerCrop()
-                .into(locationImage)
+            runOnUiThread {
+                locationView.visibility = View.VISIBLE
+                locationTitle.text = it.name
+                locationDescription.text = it.description
+                Glide
+                    .with(this@NewMapsActivity)
+                    .load(it.logo?.original)
+                    .centerCrop()
+                    .into(locationImage)
+            }
         }
     }
 
@@ -395,7 +379,7 @@ internal class MapsView(private val context: Context, id: Int, creationParams: M
     }
 
     private fun readFileContentFromAssets(file: String): String {
-        return context.assets.open(file).bufferedReader().use {
+        return application.assets.open(file).bufferedReader().use {
             it.readText()
         }
     }
